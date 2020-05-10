@@ -137,10 +137,6 @@ func (s *NamespaceWebhook) HandleRequest(w http.ResponseWriter, r *http.Request)
 
 }
 
-func checkServiceAccount(groups []string) bool {
-	return true
-}
-
 func init() {
 	scheme := runtime.NewScheme()
 	v1beta1.AddToScheme(scheme)
