@@ -1,0 +1,42 @@
+{
+  "kind": "AdmissionReview",
+  "apiVersion": "admission.k8s.io/v1beta1",
+  "request": {
+    "uid": "abcd-123",
+    "kind": {
+      "group": "operators.coreos.com",
+      "version": "v1alpha1",
+      "kind": "Subscription"
+    },
+    "resource": {
+      "group": "operators.coreos.com",
+      "version": "v1alpha1",
+      "resource": "subscriptions"
+    },
+    "operation": "CREATE",
+    "userInfo": {
+      "username": "test-user",
+      "groups": [
+        "dedicated-admins",
+        "system:authenticated:oauth",
+        "system:authenticated"
+      ],
+      "extra": {
+        "scopes.authorization.openshift.io": [
+          "user:full"
+        ]
+      }
+    },
+    "object": {
+      "metadata": {
+        "name": "mysub",
+        "namespace": "redhat-namespace",
+        "uid": "abcd-123",
+        "creationTimestamp": "2020-05-10T07:51:00Z"
+      },
+      "users": null
+    },
+    "oldObject": null,
+    "dryRun": false
+  }
+}
