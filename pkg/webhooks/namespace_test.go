@@ -1,19 +1,15 @@
 package webhooks
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
+	"github.com/lisa/k8s-webhook-framework/pkg/testutils"
+
 	"k8s.io/api/admission/v1beta1"
-	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 // Raw JSON for a Namespace, used as runtime.RawExtension, and represented here
@@ -27,7 +23,7 @@ const testNamespaceRaw string = `{
   "users": null
 }`
 
-type testSuites struct {
+type namespaceTestSuites struct {
 	testID          string
 	targetNamespace string
 	username        string
@@ -44,73 +40,6 @@ func canCanNot(b bool) string {
 	return "can not"
 }
 
-func createFakeNamespaceRequestJSON(uid, namespaceName, username string, operation v1beta1.Operation, userGroups []string) ([]byte, error) {
-	req := v1beta1.AdmissionReview{
-		Request: &v1beta1.AdmissionRequest{
-			UID: types.UID(uid),
-			Kind: metav1.GroupVersionKind{
-				Group:   "",
-				Version: "v1",
-				Kind:    "Namespace",
-			},
-			Resource: metav1.GroupVersionResource{
-				Group:    "",
-				Version:  "v1",
-				Resource: "namespaces",
-			},
-			Operation: operation,
-			UserInfo: authenticationv1.UserInfo{
-				Username: username,
-				Groups:   userGroups,
-			},
-		},
-	}
-
-	rawObjString := fmt.Sprintf(testNamespaceRaw, namespaceName, uid)
-
-	obj := runtime.RawExtension{
-		Raw: []byte(rawObjString),
-	}
-	switch operation {
-	case v1beta1.Create:
-		req.Request.Object = obj
-	case v1beta1.Update:
-		req.Request.Object = obj
-	case v1beta1.Delete:
-		req.Request.OldObject = obj
-	}
-	b, err := json.Marshal(req)
-	if err != nil {
-		return []byte{}, err
-	}
-	return b, nil
-}
-
-func createHTTPRequest(uid, namespaceName, username string, operation v1beta1.Operation, userGroups []string) (*http.Request, error) {
-	req, err := createFakeNamespaceRequestJSON(uid, namespaceName, username, operation, userGroups)
-	if err != nil {
-		return nil, err
-	}
-	buf := bytes.NewBuffer(req)
-	httprequest := httptest.NewRequest("POST", "/namespace-validation", buf)
-	httprequest.Header["Content-Type"] = []string{"application/json"}
-	return httprequest, nil
-}
-
-func sendHTTPRequest(req *http.Request) (*v1beta1.AdmissionResponse, error) {
-
-	httpResponse := httptest.NewRecorder()
-	s := newNamespaceHook()
-	s.HandleRequest(httpResponse, req)
-	// at this popint, httpResponse should contain the data sent in response to the webhook query, which is the success/fail
-	ret := &v1beta1.AdmissionReview{}
-	err := json.Unmarshal(httpResponse.Body.Bytes(), ret)
-	if err != nil {
-		return nil, err
-	}
-	return ret.Response, nil
-}
-
 func newNamespaceHook() *NamespaceWebhook {
 	scheme := runtime.NewScheme()
 	v1beta1.AddToScheme(scheme)
@@ -118,13 +47,32 @@ func newNamespaceHook() *NamespaceWebhook {
 	return &NamespaceWebhook{s: *scheme}
 }
 
-func runtests(t *testing.T, tests []testSuites) {
+func runNamespaceTests(t *testing.T, tests []namespaceTestSuites) {
+	gvk := metav1.GroupVersionKind{
+		Group:   "",
+		Version: "v1",
+		Kind:    "Namespace",
+	}
+	gvr := metav1.GroupVersionResource{
+		Group:    "",
+		Version:  "v1",
+		Resource: "namespaces",
+	}
+
 	for _, test := range tests {
-		httprequest, err := createHTTPRequest(test.testID, test.targetNamespace, test.username, test.operation, test.userGroups)
+		rawObjString := fmt.Sprintf(testNamespaceRaw, test.targetNamespace, test.testID)
+		obj := runtime.RawExtension{
+			Raw: []byte(rawObjString),
+		}
+		hook := newNamespaceHook()
+		httprequest, err := testutils.CreateHTTPRequest(hook.GetURI(),
+			test.testID,
+			gvk, gvr, test.operation, test.username, test.userGroups, obj)
 		if err != nil {
 			t.Fatalf("Expected no error, got %s", err.Error())
 		}
-		response, err := sendHTTPRequest(httprequest)
+
+		response, err := testutils.SendHTTPRequest(httprequest, hook)
 		if err != nil {
 			t.Fatalf("Expected no error, got %s", err.Error())
 		}
@@ -137,7 +85,7 @@ func runtests(t *testing.T, tests []testSuites) {
 
 // TestDedicatedAdmins will test everything a dedicated admin can and can not do
 func TestDedicatedAdmins(t *testing.T) {
-	tests := []testSuites{
+	tests := []namespaceTestSuites{
 		{
 			// Should be able to create an unprivileged namespace
 			testID:          "dedi-create-nonpriv-ns",
@@ -193,12 +141,12 @@ func TestDedicatedAdmins(t *testing.T) {
 			shouldBeAllowed: true,
 		},
 	}
-	runtests(t, tests)
+	runNamespaceTests(t, tests)
 }
 
 // TestNormalUser will test everything a normal user can and can not do
 func TestNormalUser(t *testing.T) {
-	tests := []testSuites{
+	tests := []namespaceTestSuites{
 		{
 			// Should be able to create an unprivileged namespace
 			testID:          "nonpriv-create-nonpriv-ns",
@@ -245,12 +193,12 @@ func TestNormalUser(t *testing.T) {
 			shouldBeAllowed: false,
 		},
 	}
-	runtests(t, tests)
+	runNamespaceTests(t, tests)
 }
 
 // TestLayeredProducts
 func TestLayeredProducts(t *testing.T) {
-	tests := []testSuites{
+	tests := []namespaceTestSuites{
 		{
 			// Layered admins can manipulate in the lp ns, but not privileged ones
 			// note: ^redhat.* is a privileged ns, but lp admins have an exception in
@@ -281,12 +229,12 @@ func TestLayeredProducts(t *testing.T) {
 			shouldBeAllowed: true,
 		},
 	}
-	runtests(t, tests)
+	runNamespaceTests(t, tests)
 }
 
 // TestServiceAccounts
 func TestServiceAccounts(t *testing.T) {
-	tests := []testSuites{
+	tests := []namespaceTestSuites{
 		{
 			// serviceaccounts in privileged namespaces can interact with privileged namespaces
 			testID:          "sa-create-priv-ns",
@@ -309,12 +257,12 @@ func TestServiceAccounts(t *testing.T) {
 			shouldBeAllowed: true,
 		},
 	}
-	runtests(t, tests)
+	runNamespaceTests(t, tests)
 }
 
 // TestAdminUser
 func TestAdminUser(t *testing.T) {
-	tests := []testSuites{
+	tests := []namespaceTestSuites{
 		{
 			// admin users gonna admin
 			testID:          "admin-test",
@@ -323,7 +271,20 @@ func TestAdminUser(t *testing.T) {
 			userGroups:      []string{"kube:system", "system:authenticated", "system:authenticated:oauth"},
 			operation:       v1beta1.Update,
 			shouldBeAllowed: true,
+		}, {
+
+			// admin users gonna admin
+			testID:          "sre-test",
+			targetNamespace: "kube-system",
+			username:        "lisa",
+			userGroups:      []string{"osd-sre-admins", "system:authenticated", "system:authenticated:oauth"},
+			operation:       v1beta1.Update,
+			shouldBeAllowed: true,
 		},
 	}
-	runtests(t, tests)
+	runNamespaceTests(t, tests)
+}
+
+func TestBadRequests(t *testing.T) {
+	t.Skip()
 }

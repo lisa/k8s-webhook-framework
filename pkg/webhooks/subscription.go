@@ -16,7 +16,7 @@ import (
 	admissionctl "sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
-const defaultNamespace string = "openshift-marketplace"
+const defaultSafelistedDedicatedAdminsSubscriptionNamespace string = "openshift-marketplace"
 
 // SubscriptionWebhook to handle the thing
 type SubscriptionWebhook struct {
@@ -58,7 +58,7 @@ func (s *SubscriptionWebhook) HandleRequest(w http.ResponseWriter, r *http.Reque
 
 	ns, set := os.LookupEnv("SUBSCRIPTION_VALIDATION_NAMESPACES")
 	if !set {
-		ns = defaultNamespace
+		ns = defaultSafelistedDedicatedAdminsSubscriptionNamespace
 	}
 	safelistedNamespaces := strings.Split(ns, ",")
 
