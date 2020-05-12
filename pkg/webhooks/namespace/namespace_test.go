@@ -1,4 +1,4 @@
-package webhooks
+package namespace
 
 import (
 	"fmt"
@@ -30,14 +30,6 @@ type namespaceTestSuites struct {
 	userGroups      []string
 	operation       v1beta1.Operation
 	shouldBeAllowed bool
-}
-
-// helper to make English a bit nicer
-func canCanNot(b bool) string {
-	if b {
-		return "can"
-	}
-	return "can not"
 }
 
 func newNamespaceHook() *NamespaceWebhook {
@@ -78,7 +70,7 @@ func runNamespaceTests(t *testing.T, tests []namespaceTestSuites) {
 		}
 
 		if response.Allowed != test.shouldBeAllowed {
-			t.Fatalf("Mismatch: %s (groups=%s) %s %s the %s namespace. Test's expectation is that the user %s", test.username, test.userGroups, canCanNot(response.Allowed), string(test.operation), test.targetNamespace, canCanNot(test.shouldBeAllowed))
+			t.Fatalf("Mismatch: %s (groups=%s) %s %s the %s namespace. Test's expectation is that the user %s", test.username, test.userGroups, testutils.CanCanNot(response.Allowed), string(test.operation), test.targetNamespace, testutils.CanCanNot(test.shouldBeAllowed))
 		}
 	}
 }

@@ -1,4 +1,4 @@
-package webhooks
+package namespace
 
 import (
 	"net/http"
@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	responsehelper "github.com/lisa/k8s-webhook-framework/pkg/helpers"
+	"github.com/lisa/k8s-webhook-framework/pkg/webhooks/utils"
 	"k8s.io/api/admission/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -86,17 +87,17 @@ func (s *NamespaceWebhook) authorized(request admissionctl.Request) (bool, error
 	}
 	// L58-L62
 	// This must be prior to privileged namespace check
-	if sliceContains(layeredProductAdminGroupName, request.UserInfo.Groups) &&
+	if utils.SliceContains(layeredProductAdminGroupName, request.UserInfo.Groups) &&
 		layeredProductNamespaceRe.Match([]byte(ns.GetName())) {
 		return true, nil
 	}
 	// L64-73
 	if privilegedNamespaceRe.Match([]byte(ns.GetName())) {
 		amISREAdmin := false
-		amIClusterAdmin := sliceContains(request.UserInfo.Username, clusterAdminUsers)
+		amIClusterAdmin := utils.SliceContains(request.UserInfo.Username, clusterAdminUsers)
 
 		for _, group := range sreAdminGroups {
-			if sliceContains(group, request.UserInfo.Groups) {
+			if utils.SliceContains(group, request.UserInfo.Groups) {
 				amISREAdmin = true
 				break
 			}
@@ -113,7 +114,7 @@ func (s *NamespaceWebhook) HandleRequest(w http.ResponseWriter, r *http.Request)
 	var log = logf.Log.WithName(webhookName)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	request, response, err := parseHTTPRequest(r)
+	request, response, err := utils.ParseHTTPRequest(r)
 	if err != nil {
 		log.Error(err, "Error parsing HTTP Request Body")
 		responsehelper.SendResponse(w, response)
@@ -137,9 +138,13 @@ func (s *NamespaceWebhook) HandleRequest(w http.ResponseWriter, r *http.Request)
 
 }
 
-func init() {
+// NewWebhook creates a new webhook
+func NewWebhook() *NamespaceWebhook {
 	scheme := runtime.NewScheme()
 	v1beta1.AddToScheme(scheme)
 	corev1.AddToScheme(scheme)
-	Register(webhookName, func() Webhook { return &NamespaceWebhook{s: *scheme} })
+
+	return &NamespaceWebhook{
+		s: *scheme,
+	}
 }

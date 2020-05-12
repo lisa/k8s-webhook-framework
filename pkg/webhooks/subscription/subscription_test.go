@@ -1,4 +1,4 @@
-package webhooks
+package subscription
 
 import (
 	"fmt"
@@ -72,7 +72,7 @@ func runSubscriptionTests(t *testing.T, tests []subscriptionTestSuites) {
 		}
 
 		if response.Allowed != test.shouldBeAllowed {
-			t.Fatalf("Mismatch: %s (groups=%s) %s %s the %s namespace. Test's expectation is that the user %s", test.username, test.userGroups, canCanNot(response.Allowed), string(test.operation), test.targetNamespace, canCanNot(test.shouldBeAllowed))
+			t.Fatalf("Mismatch: %s (groups=%s) %s %s the %s namespace. Test's expectation is that the user %s", test.username, test.userGroups, testutils.CanCanNot(response.Allowed), string(test.operation), test.targetNamespace, testutils.CanCanNot(test.shouldBeAllowed))
 		}
 	}
 }

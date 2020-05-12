@@ -1,4 +1,4 @@
-package webhooks
+package subscription
 
 import (
 	"encoding/json"
@@ -10,7 +10,7 @@ import (
 	"time"
 
 	responsehelper "github.com/lisa/k8s-webhook-framework/pkg/helpers"
-
+	"github.com/lisa/k8s-webhook-framework/pkg/webhooks/utils"
 	"k8s.io/apimachinery/pkg/runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 	admissionctl "sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -62,7 +62,7 @@ func (s *SubscriptionWebhook) HandleRequest(w http.ResponseWriter, r *http.Reque
 	}
 	safelistedNamespaces := strings.Split(ns, ",")
 
-	request, response, err := parseHTTPRequest(r)
+	request, response, err := utils.ParseHTTPRequest(r)
 	if err != nil {
 		log.Error(err, "Error parsing HTTP Request Body")
 		responsehelper.SendResponse(w, response)
@@ -86,7 +86,7 @@ func (s *SubscriptionWebhook) HandleRequest(w http.ResponseWriter, r *http.Reque
 		log.Info(fmt.Sprintf("Checking if dedicated admin %s can %s a Subscription (name=%s) in namespace %s (Safelisted=%s)", request.UserInfo.Username, request.Operation, sub.Metadata.Name, sub.Metadata.Namespace, safelistedNamespaces))
 		// For a dedicated admin, check to see if the Subscription in question is one of
 		// the safelisted ones they can access
-		response.AdmissionResponse.Allowed = sliceContains(sub.Metadata.Namespace, safelistedNamespaces)
+		response.AdmissionResponse.Allowed = utils.SliceContains(sub.Metadata.Namespace, safelistedNamespaces)
 	} else {
 		// Getting here means normal RBAC let us do the thing
 		log.Info("Not a dedicated admin. Allowing", "namespace", sub.Metadata.Namespace, "UserInfo", request.UserInfo)
@@ -95,7 +95,9 @@ func (s *SubscriptionWebhook) HandleRequest(w http.ResponseWriter, r *http.Reque
 	responsehelper.SendResponse(w, response)
 }
 
-func init() {
+func NewWebhook() Webhook {
 	scheme := runtime.NewScheme()
-	Register("subscription_webhook", func() Webhook { return &SubscriptionWebhook{s: *scheme} })
+	return &SubscriptionWebhook{
+		s: *scheme,
+	}
 }

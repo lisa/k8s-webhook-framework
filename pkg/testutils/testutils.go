@@ -24,6 +24,14 @@ type Webhook interface {
 	Validate(admissionctl.Request) bool
 }
 
+// CanCanNot helper to make English a bit nicer
+func CanCanNot(b bool) string {
+	if b {
+		return "can"
+	}
+	return "can not"
+}
+
 // CreateFakeRequestJSON will render the []byte slice needed for the (fake) HTTP request.
 // Inputs into this are the request UID, which GVK and GVR are being gated by this webhook,
 // User information (username and groups), what kind of operation is being gated by this webhook

@@ -1,4 +1,4 @@
-package webhooks
+package utils
 
 import (
 	"errors"
@@ -20,7 +20,7 @@ var (
 	admissionCodecs = serializer.NewCodecFactory(admissionScheme)
 )
 
-func sliceContains(needle string, haystack []string) bool {
+func SliceContains(needle string, haystack []string) bool {
 	for _, check := range haystack {
 		if needle == check {
 			return true
@@ -29,7 +29,7 @@ func sliceContains(needle string, haystack []string) bool {
 	return false
 }
 
-func parseHTTPRequest(r *http.Request) (admissionctl.Request, admissionctl.Response, error) {
+func ParseHTTPRequest(r *http.Request) (admissionctl.Request, admissionctl.Response, error) {
 	var resp admissionctl.Response
 	var req admissionctl.Request
 	var err error
