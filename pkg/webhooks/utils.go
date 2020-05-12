@@ -61,7 +61,8 @@ func parseHTTPRequest(r *http.Request) (admissionctl.Request, admissionctl.Respo
 		return req, resp, err
 	}
 
-	resp.UID = req.UID
+	// Copy for tracking
+	resp.UID = ar.Request.UID
 	req = admissionctl.Request{
 		AdmissionRequest: *ar.Request,
 	}

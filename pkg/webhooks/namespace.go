@@ -70,49 +70,25 @@ func (s *NamespaceWebhook) renderNamespace(req admissionctl.Request) (*corev1.Na
 	return namespace, nil
 }
 
-// HandleRequest Decide if the incoming request is allowed
-// Based on https://github.com/openshift/managed-cluster-validating-webhooks/blob/ad1ecb38621c485b5832eea729244e3b5ef354cc/src/webhook/namespace_validation.py
-func (s *NamespaceWebhook) HandleRequest(w http.ResponseWriter, r *http.Request) {
-	var log = logf.Log.WithName(webhookName)
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	request, response, err := parseHTTPRequest(r)
-	if err != nil {
-		log.Error(err, "Error parsing HTTP Request Body")
-		responsehelper.SendResponse(w, response)
-		return
-	}
-
-	if !s.Validate(request) {
-		response.AdmissionResponse.Allowed = false
-		responsehelper.SendResponse(w, response)
-		return
-	}
+// Is the request authorized?
+func (s *NamespaceWebhook) authorized(request admissionctl.Request) (bool, error) {
 
 	ns, err := s.renderNamespace(request)
 	if err != nil {
-		log.Error(err, "Couldn't parse any Namespace from the request")
-		response.AdmissionResponse.Allowed = false
-		responsehelper.SendResponse(w, response)
-		return
+		return false, err
 	}
 	// L49-L56
-	// TODO: This does not seem to make sense. Why would the groups match against the username?
+	// service accounts making requests will include their name in the group
 	for _, group := range request.UserInfo.Groups {
 		if privilegedServiceAccountsRe.Match([]byte(group)) {
-			response.AdmissionResponse.Allowed = true
-			log.Info("L49-L56 Odd check", "namespace", ns.GetName(), "username", request.UserInfo.Username)
-			responsehelper.SendResponse(w, response)
-			return
+			return true, nil
 		}
 	}
 	// L58-L62
+	// This must be prior to privileged namespace check
 	if sliceContains(layeredProductAdminGroupName, request.UserInfo.Groups) &&
 		layeredProductNamespaceRe.Match([]byte(ns.GetName())) {
-		log.Info("L58-L62 Layered Product", "namespace", ns.GetName(), "username", request.UserInfo.Username)
-		response.AdmissionResponse.Allowed = true
-		responsehelper.SendResponse(w, response)
-		return
+		return true, nil
 	}
 	// L64-73
 	if privilegedNamespaceRe.Match([]byte(ns.GetName())) {
@@ -125,14 +101,38 @@ func (s *NamespaceWebhook) HandleRequest(w http.ResponseWriter, r *http.Request)
 				break
 			}
 		}
-		response.AdmissionResponse.Allowed = amIClusterAdmin || amISREAdmin
-		log.Info("L64-L73 Privileged Namespace", "namespace", ns.GetName(), "allowing", response.AdmissionResponse.Allowed, "username", request.UserInfo.Username, "namespace", request.Name, "clusterAdmin", amIClusterAdmin, "SREAdmin", amISREAdmin)
+		return (amIClusterAdmin || amISREAdmin), nil
+	}
+	// L75-L77
+	return true, nil
+}
+
+// HandleRequest Decide if the incoming request is allowed
+// Based on https://github.com/openshift/managed-cluster-validating-webhooks/blob/ad1ecb38621c485b5832eea729244e3b5ef354cc/src/webhook/namespace_validation.py
+func (s *NamespaceWebhook) HandleRequest(w http.ResponseWriter, r *http.Request) {
+	var log = logf.Log.WithName(webhookName)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	request, response, err := parseHTTPRequest(r)
+	if err != nil {
+		log.Error(err, "Error parsing HTTP Request Body")
 		responsehelper.SendResponse(w, response)
 		return
 	}
-	// L75-L77
-	log.Info("L75-L77 Responding allow", "userInfo", request.UserInfo, "namespace", ns.GetName())
-	response.AdmissionResponse.Allowed = true
+	// Is this a valid request?
+	if !s.Validate(request) {
+		response.AdmissionResponse.Allowed = false
+		responsehelper.SendResponse(w, response)
+		return
+	}
+	// should the request be authorized?
+	response.AdmissionResponse.Allowed, err = s.authorized(request)
+	if err != nil {
+		log.Error(err, "Error in authorizing: %s", err.Error())
+		response.AdmissionResponse.Allowed = false
+		responsehelper.SendResponse(w, response)
+		return
+	}
 	responsehelper.SendResponse(w, response)
 
 }
