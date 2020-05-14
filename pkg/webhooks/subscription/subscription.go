@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -17,8 +15,11 @@ import (
 )
 
 const (
-	webhookName                                           string = "subscription_validator"
-	defaultSafelistedDedicatedAdminsSubscriptionNamespace string = "openshift-marketplace"
+	webhookName string = "subscription_validator"
+)
+
+var (
+	safelistedNamespaces = []string{"openshift-marketplace"}
 )
 
 // SubscriptionWebhook to handle the thing
@@ -57,12 +58,6 @@ func (s *SubscriptionWebhook) GetURI() string {
 
 func (s *SubscriptionWebhook) authorized(request admissionctl.Request) admissionctl.Response {
 	var ret admissionctl.Response
-
-	ns, set := os.LookupEnv("SUBSCRIPTION_VALIDATION_NAMESPACES")
-	if !set {
-		ns = defaultSafelistedDedicatedAdminsSubscriptionNamespace
-	}
-	safelistedNamespaces := strings.Split(ns, ",")
 
 	sub := &subscriptionRequest{}
 	// If the user is a dedicated admin, they may only make changes to
@@ -114,7 +109,7 @@ func (s *SubscriptionWebhook) HandleRequest(w http.ResponseWriter, r *http.Reque
 	responsehelper.SendResponse(w, s.authorized(request))
 }
 
-func NewWebhook() Webhook {
+func NewWebhook() *SubscriptionWebhook {
 	scheme := runtime.NewScheme()
 	return &SubscriptionWebhook{
 		s: *scheme,
