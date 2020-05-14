@@ -1,6 +1,7 @@
 package namespace
 
 import (
+	"fmt"
 	"net/http"
 	"regexp"
 	"sync"
@@ -30,6 +31,8 @@ var (
 	privilegedNamespaceRe       = regexp.MustCompile(privilegedNamespace)
 	privilegedServiceAccountsRe = regexp.MustCompile(privilegedServiceAccounts)
 	layeredProductNamespaceRe   = regexp.MustCompile(layeredProductNamespace)
+
+	log = logf.Log.WithName(webhookName)
 )
 
 // NamespaceWebhook validates a Namespace change
@@ -58,7 +61,6 @@ func (s *NamespaceWebhook) renderNamespace(req admissionctl.Request) (*corev1.Na
 	if err != nil {
 		return nil, err
 	}
-
 	namespace := &corev1.Namespace{}
 	if len(req.OldObject.Raw) > 0 {
 		err = decoder.DecodeRaw(req.OldObject, namespace)
@@ -72,24 +74,29 @@ func (s *NamespaceWebhook) renderNamespace(req admissionctl.Request) (*corev1.Na
 }
 
 // Is the request authorized?
-func (s *NamespaceWebhook) authorized(request admissionctl.Request) (bool, error) {
-
+func (s *NamespaceWebhook) authorized(request admissionctl.Request) admissionctl.Response {
+	var ret admissionctl.Response
 	ns, err := s.renderNamespace(request)
 	if err != nil {
-		return false, err
+		log.Error(err, "Couldn't render a Namespace from the incoming request")
+		return admissionctl.Errored(http.StatusBadRequest, err)
 	}
 	// L49-L56
 	// service accounts making requests will include their name in the group
 	for _, group := range request.UserInfo.Groups {
 		if privilegedServiceAccountsRe.Match([]byte(group)) {
-			return true, nil
+			ret = admissionctl.Allowed("Privileged service accounts may access")
+			ret.UID = request.AdmissionRequest.UID
+			return ret
 		}
 	}
 	// L58-L62
 	// This must be prior to privileged namespace check
 	if utils.SliceContains(layeredProductAdminGroupName, request.UserInfo.Groups) &&
 		layeredProductNamespaceRe.Match([]byte(ns.GetName())) {
-		return true, nil
+		ret = admissionctl.Allowed("Layered product admins may access")
+		ret.UID = request.AdmissionRequest.UID
+		return ret
 	}
 	// L64-73
 	if privilegedNamespaceRe.Match([]byte(ns.GetName())) {
@@ -102,39 +109,43 @@ func (s *NamespaceWebhook) authorized(request admissionctl.Request) (bool, error
 				break
 			}
 		}
-		return (amIClusterAdmin || amISREAdmin), nil
+		if amIClusterAdmin || amISREAdmin {
+			ret = admissionctl.Allowed("Cluster and SRE admins may access")
+			ret.UID = request.AdmissionRequest.UID
+			return ret
+		}
+		ret = admissionctl.Denied("Non-admin access attempt to privileged namespace")
+		ret.UID = request.AdmissionRequest.UID
+		return ret
 	}
 	// L75-L77
-	return true, nil
+	ret = admissionctl.Allowed("RBAC allowed")
+	ret.UID = request.AdmissionRequest.UID
+	return ret
 }
 
 // HandleRequest Decide if the incoming request is allowed
 // Based on https://github.com/openshift/managed-cluster-validating-webhooks/blob/ad1ecb38621c485b5832eea729244e3b5ef354cc/src/webhook/namespace_validation.py
 func (s *NamespaceWebhook) HandleRequest(w http.ResponseWriter, r *http.Request) {
-	var log = logf.Log.WithName(webhookName)
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	request, response, err := utils.ParseHTTPRequest(r)
+	request, _, err := utils.ParseHTTPRequest(r)
 	if err != nil {
 		log.Error(err, "Error parsing HTTP Request Body")
-		responsehelper.SendResponse(w, response)
+		responsehelper.SendResponse(w, admissionctl.Errored(http.StatusBadRequest, err))
 		return
 	}
 	// Is this a valid request?
 	if !s.Validate(request) {
-		response.AdmissionResponse.Allowed = false
-		responsehelper.SendResponse(w, response)
+		responsehelper.SendResponse(w,
+			admissionctl.Errored(http.StatusBadRequest,
+				fmt.Errorf("Could not parse Namespace from request")))
 		return
 	}
 	// should the request be authorized?
-	response.AdmissionResponse.Allowed, err = s.authorized(request)
-	if err != nil {
-		log.Error(err, "Error in authorizing: %s", err.Error())
-		response.AdmissionResponse.Allowed = false
-		responsehelper.SendResponse(w, response)
-		return
-	}
-	responsehelper.SendResponse(w, response)
+
+	responsehelper.SendResponse(w, s.authorized(request))
 
 }
 

@@ -7,7 +7,6 @@ import (
 	"github.com/lisa/k8s-webhook-framework/pkg/testutils"
 
 	"k8s.io/api/admission/v1beta1"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -34,13 +33,6 @@ type subscriptionTestSuites struct {
 	shouldBeAllowed  bool
 }
 
-func newSubscriptionHook() *SubscriptionWebhook {
-	scheme := runtime.NewScheme()
-	v1beta1.AddToScheme(scheme)
-	corev1.AddToScheme(scheme)
-	return &SubscriptionWebhook{s: *scheme}
-}
-
 func runSubscriptionTests(t *testing.T, tests []subscriptionTestSuites) {
 	gvk := metav1.GroupVersionKind{
 		Group:   "operators.coreos.com",
@@ -58,7 +50,7 @@ func runSubscriptionTests(t *testing.T, tests []subscriptionTestSuites) {
 		obj := runtime.RawExtension{
 			Raw: []byte(rawObjString),
 		}
-		hook := newSubscriptionHook()
+		hook := NewWebhook()
 		httprequest, err := testutils.CreateHTTPRequest(hook.GetURI(),
 			test.testID,
 			gvk, gvr, test.operation, test.username, test.userGroups, obj)
@@ -69,6 +61,9 @@ func runSubscriptionTests(t *testing.T, tests []subscriptionTestSuites) {
 		response, err := testutils.SendHTTPRequest(httprequest, hook)
 		if err != nil {
 			t.Fatalf("Expected no error, got %s", err.Error())
+		}
+		if response.UID == "" {
+			t.Fatalf("No tracking UID associated with the response.")
 		}
 
 		if response.Allowed != test.shouldBeAllowed {

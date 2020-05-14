@@ -59,7 +59,9 @@ func runGroupTests(t *testing.T, tests []groupTestsuites) {
 		if err != nil {
 			t.Fatalf("Expected no error, got %s", err.Error())
 		}
-
+		if response.UID == "" {
+			t.Fatalf("No tracking UID associated with the response.")
+		}
 		if response.Allowed != test.shouldBeAllowed {
 			t.Fatalf("Mismatch: %s (groups=%s) %s %s the %s Group. Test's expectation is that the user %s",
 				test.username, test.userGroups, testutils.CanCanNot(response.Allowed), string(test.operation), test.groupName, testutils.CanCanNot(test.shouldBeAllowed))

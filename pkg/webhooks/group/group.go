@@ -50,25 +50,40 @@ func (s *GroupWebhook) GetURI() string {
 }
 
 // Is the request authorized?
-func (s *GroupWebhook) authorized(request admissionctl.Request) (bool, error) {
+func (s *GroupWebhook) authorized(request admissionctl.Request) admissionctl.Response {
+	var ret admissionctl.Response
 	// Cluster admins can do anything
 	if utils.SliceContains(request.AdmissionRequest.UserInfo.Username, clusterAdminUsers) {
-		return true, nil
+
+		ret = admissionctl.Allowed("Cluster admins may access")
+		ret.UID = request.AdmissionRequest.UID
+		return ret
 	}
 	group := &groupRequest{}
 	err := json.Unmarshal(request.Object.Raw, group)
 	if err != nil {
-		return false, err
+		ret = admissionctl.Errored(http.StatusBadRequest, err)
+		ret.UID = request.AdmissionRequest.UID
+		return ret
 	}
 	if protectedGroupsRe.Match([]byte(group.Metadata.Name)) {
 		// protected group trying to be accessed, so let's check
 		for _, usersgroup := range request.AdmissionRequest.UserInfo.Groups {
 			// are they an admin?
-			return utils.SliceContains(usersgroup, adminGroups), nil
+			if utils.SliceContains(usersgroup, adminGroups) {
+				ret = admissionctl.Allowed("Admin may access protected group")
+				ret.UID = request.AdmissionRequest.UID
+				return ret
+			}
 		}
+		ret = admissionctl.Denied("May not access protected group")
+		ret.UID = request.AdmissionRequest.UID
+		return ret
 	}
 	// it isn't protected, so let's not be bothered
-	return true, nil
+	ret = admissionctl.Allowed("RBAC allowed")
+	ret.UID = request.AdmissionRequest.UID
+	return ret
 }
 
 // Validate - Make sure we're working with a well-formed Admission Request object
@@ -86,7 +101,7 @@ func (s *GroupWebhook) HandleRequest(w http.ResponseWriter, r *http.Request) {
 	var log = logf.Log.WithName(webhookName)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	request, response, err := utils.ParseHTTPRequest(r)
+	request, _, err := utils.ParseHTTPRequest(r)
 	if err != nil {
 		log.Error(err, "Error parsing HTTP Request Body")
 		responsehelper.SendResponse(w, admissionctl.Errored(http.StatusBadRequest, err))
@@ -98,8 +113,7 @@ func (s *GroupWebhook) HandleRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// should the request be authorized?
-	response.AdmissionResponse.Allowed, err = s.authorized(request)
-	responsehelper.SendResponse(w, response)
+	responsehelper.SendResponse(w, s.authorized(request))
 }
 
 // NewWebhook creates a new webhook

@@ -16,13 +16,18 @@ import (
 	admissionctl "sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
-const defaultSafelistedDedicatedAdminsSubscriptionNamespace string = "openshift-marketplace"
+const (
+	webhookName                                           string = "subscription_validator"
+	defaultSafelistedDedicatedAdminsSubscriptionNamespace string = "openshift-marketplace"
+)
 
 // SubscriptionWebhook to handle the thing
 type SubscriptionWebhook struct {
 	mu sync.Mutex
 	s  runtime.Scheme
 }
+
+var log = logf.Log.WithName(webhookName)
 
 // subscriptionRequest represents a fragment of the data sent as part as part of
 // the request
@@ -50,11 +55,8 @@ func (s *SubscriptionWebhook) GetURI() string {
 	return "/subscription-validation"
 }
 
-// HandleRequest handle it
-func (s *SubscriptionWebhook) HandleRequest(w http.ResponseWriter, r *http.Request) {
-	var log = logf.Log.WithName("subscription_validator")
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func (s *SubscriptionWebhook) authorized(request admissionctl.Request) admissionctl.Response {
+	var ret admissionctl.Response
 
 	ns, set := os.LookupEnv("SUBSCRIPTION_VALIDATION_NAMESPACES")
 	if !set {
@@ -62,17 +64,6 @@ func (s *SubscriptionWebhook) HandleRequest(w http.ResponseWriter, r *http.Reque
 	}
 	safelistedNamespaces := strings.Split(ns, ",")
 
-	request, response, err := utils.ParseHTTPRequest(r)
-	if err != nil {
-		log.Error(err, "Error parsing HTTP Request Body")
-		responsehelper.SendResponse(w, response)
-		return
-	}
-	if !s.Validate(request) {
-		response.AdmissionResponse.Allowed = false
-		responsehelper.SendResponse(w, response)
-		return
-	}
 	sub := &subscriptionRequest{}
 	// If the user is a dedicated admin, they may only make changes to
 	// Subscriptions in SUBSCRIPTION_VALIDATION_NAMESPACES namespace(s)
@@ -80,19 +71,47 @@ func (s *SubscriptionWebhook) HandleRequest(w http.ResponseWriter, r *http.Reque
 		err := json.Unmarshal(request.Object.Raw, sub)
 		if err != nil {
 			log.Error(err, "Couldn't parse Subscription information from request")
-			responsehelper.SendResponse(w, response)
-			return
+			ret = admissionctl.Errored(http.StatusBadRequest, err)
+			ret.UID = request.AdmissionRequest.UID
+			return ret
 		}
 		log.Info(fmt.Sprintf("Checking if dedicated admin %s can %s a Subscription (name=%s) in namespace %s (Safelisted=%s)", request.UserInfo.Username, request.Operation, sub.Metadata.Name, sub.Metadata.Namespace, safelistedNamespaces))
 		// For a dedicated admin, check to see if the Subscription in question is one of
 		// the safelisted ones they can access
-		response.AdmissionResponse.Allowed = utils.SliceContains(sub.Metadata.Namespace, safelistedNamespaces)
-	} else {
-		// Getting here means normal RBAC let us do the thing
-		log.Info("Not a dedicated admin. Allowing", "namespace", sub.Metadata.Namespace, "UserInfo", request.UserInfo)
-		response.AdmissionResponse.Allowed = true
+		if utils.SliceContains(sub.Metadata.Namespace, safelistedNamespaces) {
+			ret = admissionctl.Allowed("Dedicated-admin may access")
+			ret.UID = request.AdmissionRequest.UID
+			return ret
+		}
+		ret = admissionctl.Denied("Dedicaed-admins may not access")
+		ret.UID = request.AdmissionRequest.UID
+		return ret
 	}
-	responsehelper.SendResponse(w, response)
+	// Getting here means normal RBAC let us do the thing
+	ret = admissionctl.Allowed("RBAC allowed")
+	ret.UID = request.AdmissionRequest.UID
+	return ret
+}
+
+// HandleRequest handle it
+func (s *SubscriptionWebhook) HandleRequest(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	request, _, err := utils.ParseHTTPRequest(r)
+	if err != nil {
+		log.Error(err, "Error parsing HTTP Request Body")
+		responsehelper.SendResponse(w, admissionctl.Errored(http.StatusBadRequest, err))
+		return
+	}
+	if !s.Validate(request) {
+		responsehelper.SendResponse(w,
+			admissionctl.Errored(http.StatusBadRequest,
+				fmt.Errorf("Could not parse Subscription from request")))
+		return
+	}
+
+	responsehelper.SendResponse(w, s.authorized(request))
 }
 
 func NewWebhook() Webhook {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net/http"
 
@@ -11,11 +12,15 @@ import (
 
 var log = logf.Log.WithName("handler")
 
-const listenHostAndPort string = "0.0.0.0:8888"
+var (
+	listenAddress = flag.String("listen", "0.0.0.0", "listen address")
+	listenPort    = flag.String("port", "443", "port to listen on")
+)
 
 func main() {
+	flag.Parse()
 	logf.SetLogger(logf.ZapLogger(true))
-	log.Info("HTTP server running at", "listen", listenHostAndPort)
+	log.Info("HTTP server running at", "listen", fmt.Sprintf("%s:%s", *listenAddress, *listenPort))
 	seen := make(map[string]bool)
 	for name, hook := range webhooks.Webhooks {
 		if seen[hook().GetURI()] {
@@ -26,6 +31,6 @@ func main() {
 		http.HandleFunc(hook().GetURI(), hook().HandleRequest)
 	}
 
-	log.Error(http.ListenAndServe(listenHostAndPort, nil), "Error serving")
+	log.Error(http.ListenAndServe(fmt.Sprintf("%s:%s", *listenAddress, *listenPort), nil), "Error serving")
 
 }
