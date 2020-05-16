@@ -10,6 +10,7 @@ import (
 	responsehelper "github.com/lisa/k8s-webhook-framework/pkg/helpers"
 	"github.com/lisa/k8s-webhook-framework/pkg/webhooks/utils"
 	"k8s.io/api/admission/v1beta1"
+	admissionregv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 	admissionctl "sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -34,7 +35,7 @@ type groupRequest struct {
 }
 
 const (
-	webhookName     string = "group_validator"
+	webhookName     string = "group-validation"
 	protectedGroups string = `(^osd-sre.*|^dedicated-admins$|^cluster-admins$|^layered-cs-sre-admins$)`
 )
 
@@ -42,7 +43,32 @@ var (
 	protectedGroupsRe = regexp.MustCompile(protectedGroups)
 	clusterAdminUsers = []string{"kube:admin", "system:admin"}
 	adminGroups       = []string{"osd-sre-admins,osd-sre-cluster-admins"}
+
+	scope = admissionregv1beta1.ClusterScope
+	rules = []admissionregv1beta1.RuleWithOperations{
+		{
+			Operations: []admissionregv1beta1.OperationType{"UPDATE", "CREATE", "DELETE"},
+			Rule: admissionregv1beta1.Rule{
+				APIGroups:   []string{"user.openshift.io"},
+				APIVersions: []string{"*"},
+				Resources:   []string{"groups"},
+				Scope:       &scope,
+			},
+		},
+	}
 )
+
+func (s *GroupWebhook) Rules() []admissionregv1beta1.RuleWithOperations {
+	return rules
+}
+
+func (s *GroupWebhook) FailurePolicy() admissionregv1beta1.FailurePolicyType {
+	return admissionregv1beta1.Fail
+}
+
+func (s *GroupWebhook) Name() string {
+	return webhookName
+}
 
 // GetURI - where am I?
 func (s *GroupWebhook) GetURI() string {

@@ -9,17 +9,31 @@ import (
 
 	responsehelper "github.com/lisa/k8s-webhook-framework/pkg/helpers"
 	"github.com/lisa/k8s-webhook-framework/pkg/webhooks/utils"
+	admissionregv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 	admissionctl "sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 const (
-	webhookName string = "subscription_validator"
+	webhookName string = "subscription-validation"
 )
 
 var (
 	safelistedNamespaces = []string{"openshift-marketplace"}
+
+	scope = admissionregv1beta1.NamespacedScope
+	rules = []admissionregv1beta1.RuleWithOperations{
+		{
+			Operations: []admissionregv1beta1.OperationType{"UPDATE", "CREATE"},
+			Rule: admissionregv1beta1.Rule{
+				APIGroups:   []string{"operators.coreos.io"},
+				APIVersions: []string{"*"},
+				Resources:   []string{"subscriptions"},
+				Scope:       &scope,
+			},
+		},
+	}
 )
 
 // SubscriptionWebhook to handle the thing
@@ -40,6 +54,18 @@ type subscriptionRequest struct {
 		CreationTimestamp time.Time `json:"creationTimestamp"`
 	} `json:"metadata"`
 	Users []string `json:"users"`
+}
+
+func (s *SubscriptionWebhook) Rules() []admissionregv1beta1.RuleWithOperations {
+	return rules
+}
+
+func (s *SubscriptionWebhook) FailurePolicy() admissionregv1beta1.FailurePolicyType {
+	return admissionregv1beta1.Fail
+}
+
+func (s *SubscriptionWebhook) Name() string {
+	return webhookName
 }
 
 // Validate - Make sure we're working with a well-formed Admission Request object

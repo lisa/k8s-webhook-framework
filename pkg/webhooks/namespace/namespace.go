@@ -9,6 +9,7 @@ import (
 	responsehelper "github.com/lisa/k8s-webhook-framework/pkg/helpers"
 	"github.com/lisa/k8s-webhook-framework/pkg/webhooks/utils"
 	"k8s.io/api/admission/v1beta1"
+	admissionregv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	admissionctl "sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -17,7 +18,7 @@ import (
 )
 
 const (
-	webhookName                  string = "namespace_validator"
+	webhookName                  string = "namespace-validation"
 	privilegedNamespace          string = `(^kube.*|^openshift.*|^default$|^redhat.*)`
 	privilegedServiceAccounts    string = `^system:serviceaccounts:(kube.*|openshift.*|default|redhat.*)`
 	layeredProductNamespace      string = `^redhat.*`
@@ -33,12 +34,38 @@ var (
 	layeredProductNamespaceRe   = regexp.MustCompile(layeredProductNamespace)
 
 	log = logf.Log.WithName(webhookName)
+
+	scope = admissionregv1beta1.ClusterScope
+
+	rules = []admissionregv1beta1.RuleWithOperations{
+		{
+			Operations: []admissionregv1beta1.OperationType{"UPDATE"},
+			Rule: admissionregv1beta1.Rule{
+				APIGroups:   []string{""},
+				APIVersions: []string{"*"},
+				Resources:   []string{"namespaces"},
+				Scope:       &scope,
+			},
+		},
+	}
 )
 
 // NamespaceWebhook validates a Namespace change
 type NamespaceWebhook struct {
 	mu sync.Mutex
 	s  runtime.Scheme
+}
+
+func (s *NamespaceWebhook) Rules() []admissionregv1beta1.RuleWithOperations {
+	return rules
+}
+
+func (s *NamespaceWebhook) FailurePolicy() admissionregv1beta1.FailurePolicyType {
+	return admissionregv1beta1.Ignore
+}
+
+func (s *NamespaceWebhook) Name() string {
+	return webhookName
 }
 
 // Validate - Make sure we're working with a well-formed Admission Request object
