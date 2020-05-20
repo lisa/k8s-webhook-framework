@@ -35,7 +35,7 @@ type groupRequest struct {
 }
 
 const (
-	webhookName     string = "group-validation"
+	WebhookName     string = "group-validation"
 	protectedGroups string = `(^osd-sre.*|^dedicated-admins$|^cluster-admins$|^layered-cs-sre-admins$)`
 )
 
@@ -69,7 +69,7 @@ func (s *GroupWebhook) FailurePolicy() admissionregv1beta1.FailurePolicyType {
 }
 
 func (s *GroupWebhook) Name() string {
-	return webhookName
+	return WebhookName
 }
 
 // GetURI - where am I?
@@ -125,7 +125,7 @@ func (s *GroupWebhook) Validate(req admissionctl.Request) bool {
 // HandleRequest Decide if the incoming request is allowed
 // Based on https://github.com/openshift/managed-cluster-validating-webhooks/blob/33aae59f588643fb8d1fe19cea9572c759586dd6/src/webhook/group_validation.py
 func (s *GroupWebhook) HandleRequest(w http.ResponseWriter, r *http.Request) {
-	var log = logf.Log.WithName(webhookName)
+	var log = logf.Log.WithName(WebhookName)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	request, _, err := utils.ParseHTTPRequest(r)

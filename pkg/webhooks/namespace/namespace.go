@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	webhookName                  string = "namespace-validation"
+	WebhookName                  string = "namespace-validation"
 	privilegedNamespace          string = `(^kube.*|^openshift.*|^default$|^redhat.*)`
 	privilegedServiceAccounts    string = `^system:serviceaccounts:(kube.*|openshift.*|default|redhat.*)`
 	layeredProductNamespace      string = `^redhat.*`
@@ -33,7 +33,7 @@ var (
 	privilegedServiceAccountsRe = regexp.MustCompile(privilegedServiceAccounts)
 	layeredProductNamespaceRe   = regexp.MustCompile(layeredProductNamespace)
 
-	log = logf.Log.WithName(webhookName)
+	log = logf.Log.WithName(WebhookName)
 
 	matchPolicy = admissionregv1beta1.Exact
 	scope       = admissionregv1beta1.ClusterScope
@@ -66,7 +66,7 @@ func (s *NamespaceWebhook) FailurePolicy() admissionregv1beta1.FailurePolicyType
 }
 
 func (s *NamespaceWebhook) Name() string {
-	return webhookName
+	return WebhookName
 }
 
 // Validate - Make sure we're working with a well-formed Admission Request object

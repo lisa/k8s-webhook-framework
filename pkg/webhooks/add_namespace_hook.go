@@ -5,5 +5,5 @@ import (
 )
 
 func init() {
-	Register("namespace", func() Webhook { return namespace.NewWebhook() })
+	Register(namespace.WebhookName, func() Webhook { return namespace.NewWebhook() })
 }
