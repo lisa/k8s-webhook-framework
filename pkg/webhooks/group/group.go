@@ -44,8 +44,9 @@ var (
 	clusterAdminUsers = []string{"kube:admin", "system:admin"}
 	adminGroups       = []string{"osd-sre-admins,osd-sre-cluster-admins"}
 
-	scope = admissionregv1beta1.ClusterScope
-	rules = []admissionregv1beta1.RuleWithOperations{
+	matchPolicy = admissionregv1beta1.Exact
+	scope       = admissionregv1beta1.ClusterScope
+	rules       = []admissionregv1beta1.RuleWithOperations{
 		{
 			Operations: []admissionregv1beta1.OperationType{"UPDATE", "CREATE", "DELETE"},
 			Rule: admissionregv1beta1.Rule{
@@ -58,6 +59,7 @@ var (
 	}
 )
 
+func (s *GroupWebhook) MatchPolicy() *admissionregv1beta1.MatchPolicyType { return &matchPolicy }
 func (s *GroupWebhook) Rules() []admissionregv1beta1.RuleWithOperations {
 	return rules
 }
@@ -80,7 +82,6 @@ func (s *GroupWebhook) authorized(request admissionctl.Request) admissionctl.Res
 	var ret admissionctl.Response
 	// Cluster admins can do anything
 	if utils.SliceContains(request.AdmissionRequest.UserInfo.Username, clusterAdminUsers) {
-
 		ret = admissionctl.Allowed("Cluster admins may access")
 		ret.UID = request.AdmissionRequest.UID
 		return ret

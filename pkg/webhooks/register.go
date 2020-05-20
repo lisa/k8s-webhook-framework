@@ -22,6 +22,10 @@ type Webhook interface {
 	Name() string
 	// FailurePolicy is how the hook config should react if k8s can't access it
 	FailurePolicy() admissionregv1beta1.FailurePolicyType
+	// MatchPolicy mirrors validatingwebhookconfiguration.webhooks[].matchPolicy.
+	// If it is important to the webhook, be sure to check subResource vs
+	// requestSubResource.
+	MatchPolicy() *admissionregv1beta1.MatchPolicyType
 	// Rules is a slice of rules on which this hook should trigger
 	Rules() []admissionregv1beta1.RuleWithOperations
 }

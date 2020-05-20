@@ -35,9 +35,9 @@ var (
 
 	log = logf.Log.WithName(webhookName)
 
-	scope = admissionregv1beta1.ClusterScope
-
-	rules = []admissionregv1beta1.RuleWithOperations{
+	matchPolicy = admissionregv1beta1.Exact
+	scope       = admissionregv1beta1.ClusterScope
+	rules       = []admissionregv1beta1.RuleWithOperations{
 		{
 			Operations: []admissionregv1beta1.OperationType{"UPDATE"},
 			Rule: admissionregv1beta1.Rule{
@@ -56,6 +56,7 @@ type NamespaceWebhook struct {
 	s  runtime.Scheme
 }
 
+func (s *NamespaceWebhook) MatchPolicy() *admissionregv1beta1.MatchPolicyType { return &matchPolicy }
 func (s *NamespaceWebhook) Rules() []admissionregv1beta1.RuleWithOperations {
 	return rules
 }
