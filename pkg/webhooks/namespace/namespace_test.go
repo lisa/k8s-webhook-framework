@@ -275,3 +275,26 @@ func TestAdminUser(t *testing.T) {
 func TestBadRequests(t *testing.T) {
 	t.Skip()
 }
+func TestMatchPollicy(t *testing.T) {
+	if NewWebhook().MatchPolicy() == nil {
+		t.Fatalf("nil Match Policy")
+	}
+}
+
+func TestName(t *testing.T) {
+	if NewWebhook().Name() == "" {
+		t.Fatalf("Empty hook name")
+	}
+}
+
+func TestRules(t *testing.T) {
+	if len(NewWebhook().Rules()) == 0 {
+		t.Log("No rules for this webhook?")
+	}
+}
+
+func TestGetURI(t *testing.T) {
+	if NewWebhook().GetURI()[0] != '/' {
+		t.Fatalf("Hook URI does not begin with a /")
+	}
+}
