@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 
 	"github.com/lisa/k8s-webhook-framework/pkg/webhooks"
 	templatev1 "github.com/openshift/api/template/v1"
@@ -23,16 +24,17 @@ import (
 	"github.com/ghodss/yaml"
 )
 
-const (
-	webhookServiceNamespace string = "openshift-validation-webhook"
-)
-
 var (
-	listenPort   = flag.Int("port", 5000, "On which port should the Webhook binary listen? (Not the Service port)")
-	image        = flag.String("image", "#IMG#:${IMAGE_TAG}", "Image and tag to use for webhooks")
-	secretName   = flag.String("secretname", "webhook-cert", "Secret where TLS certs are created")
-	caBundleName = flag.String("cabundlename", "webhook-cert", "ConfigMap where CA cert is created")
-	templateFile = flag.String("outfile", "", "Path to where the SelectorSyncSet template should be written")
+	listenPort    = flag.Int("port", 5000, "On which port should the Webhook binary listen? (Not the Service port)")
+	image         = flag.String("image", "#IMG#:${IMAGE_TAG}", "Image and tag to use for webhooks")
+	secretName    = flag.String("secretname", "webhook-cert", "Secret where TLS certs are created")
+	caBundleName  = flag.String("cabundlename", "webhook-cert", "ConfigMap where CA cert is created")
+	templateFile  = flag.String("outfile", "", "Path to where the SelectorSyncSet template should be written")
+	excludes      = flag.String("exclude", "echo-hook", "Comma-separated list of webhook names to skip")
+	only          = flag.String("only", "", "Only include these comma-separated webhooks")
+	showHookNames = flag.Bool("showhooks", false, "Print registered webhook names and exit")
+
+	namespace = flag.String("namespace", "openshift-validation-webhook", "In what namespace should resources exist?")
 
 	sssLabels = map[string]string{
 		"managed.openshift.io/gitHash":     "${IMAGE_TAG}",
@@ -53,7 +55,7 @@ func createServiceAccount() *corev1.ServiceAccount {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "validation-webhook",
-			Namespace: "openshift-validation-webhook",
+			Namespace: *namespace,
 		},
 	}
 }
@@ -99,7 +101,7 @@ func createClusterRoleBinding() *rbacv1.ClusterRoleBinding {
 			{
 				Kind:      "ServiceAccount",
 				Name:      "validation-webhook",
-				Namespace: "openshift-validation-webhook",
+				Namespace: *namespace,
 			},
 		},
 	}
@@ -111,7 +113,7 @@ func createNamespace() *corev1.Namespace {
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "openshift-validation-webhook",
+			Name: *namespace,
 			Labels: map[string]string{
 				"openshift.io/cluster-monitoring": "true",
 			},
@@ -129,7 +131,7 @@ func createCACertConfigMap() *corev1.ConfigMap {
 				"service.beta.openshift.io/inject-cabundle": "true",
 			},
 			Name:      "webhook-cert",
-			Namespace: "openshift-validation-webhook",
+			Namespace: *namespace,
 		},
 	}
 }
@@ -146,7 +148,7 @@ func createDeployment() *appsv1.Deployment {
 				"deployment": "validation-webhook",
 			},
 			Name:      "validation-webhook",
-			Namespace: "openshift-validation-webhook",
+			Namespace: *namespace,
 		},
 		Spec: appsv1.DeploymentSpec{
 			Replicas: pointer.Int32Ptr(3),
@@ -186,9 +188,11 @@ func createDeployment() *appsv1.Deployment {
 					},
 					InitContainers: []corev1.Container{
 						{
-							Image:   "quay.io/app-sre/managed-cluster-validating-webhooks:${IMAGE_TAG}",
-							Name:    "inject-cert",
-							Command: []string{"python3", "/app/init.py", "-a", "managed.openshift.io/inject-cabundle-from"},
+							Image: *image,
+							Name:  "inject-cert",
+							Command: []string{
+								"injector",
+							},
 						},
 					},
 					Containers: []corev1.Container{
@@ -214,6 +218,7 @@ func createDeployment() *appsv1.Deployment {
 								},
 							},
 							Command: []string{
+								"webhooks",
 								"-tlskey", "/service-certs/tls.key",
 								"-tlscert", "/service-certs/tls.crt",
 								"-cacert", "/service-ca/service-ca.crt",
@@ -241,7 +246,7 @@ func createService() *corev1.Service {
 				"name": "validation-webhook",
 			},
 			Name:      "validation-webhook",
-			Namespace: webhookServiceNamespace,
+			Namespace: *namespace,
 		},
 		Spec: corev1.ServiceSpec{
 			Type: corev1.ServiceTypeClusterIP,
@@ -274,18 +279,19 @@ func createValidatingWebhookConfiguration(hook webhooks.Webhook) admissionregv1b
 			APIVersion: "v1beta1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: fmt.Sprintf("sre-%s-validation", hook.Name()),
+			Name: fmt.Sprintf("sre-%s", hook.Name()),
 			Annotations: map[string]string{
-				"managed.openshift.io/inject-cabundle-from": "openshift-validation-webhook/webhook-cert",
+				"managed.openshift.io/inject-cabundle-from": fmt.Sprintf("%s/webhook-cert", *namespace),
 			},
 		},
 		Webhooks: []admissionregv1beta1.ValidatingWebhook{
 			{
-				Name:          fmt.Sprintf("%s-validation.managed.openshift.io", hook.Name()),
+				MatchPolicy:   hook.MatchPolicy(),
+				Name:          fmt.Sprintf("%s.managed.openshift.io", hook.Name()),
 				FailurePolicy: &failPolicy,
 				ClientConfig: admissionregv1beta1.WebhookClientConfig{
 					Service: &admissionregv1beta1.ServiceReference{
-						Namespace: webhookServiceNamespace,
+						Namespace: *namespace,
 						Path:      pointer.StringPtr(hook.GetURI()),
 						Name:      hook.Name(),
 					},
@@ -303,6 +309,15 @@ func encode(obj interface{}) []byte {
 		os.Exit(1)
 	}
 	return o
+}
+
+func sliceContains(needle string, haystack []string) bool {
+	for _, hay := range haystack {
+		if hay == needle {
+			return true
+		}
+	}
+	return false
 }
 
 func createSelectorSyncSet(resources []runtime.RawExtension) *hivev1.SelectorSyncSet {
@@ -334,30 +349,48 @@ func createSelectorSyncSet(resources []runtime.RawExtension) *hivev1.SelectorSyn
 }
 func main() {
 	flag.Parse()
+
+	skip := strings.Split(*excludes, ",")
+	onlyInclude := strings.Split(*only, "")
+
+	encoded := make([]runtime.RawExtension, 0)
+	encoded = append(encoded, runtime.RawExtension{Object: createNamespace()})
+	encoded = append(encoded, runtime.RawExtension{Object: createServiceAccount()})
+	encoded = append(encoded, runtime.RawExtension{Object: createClusterRole()})
+	encoded = append(encoded, runtime.RawExtension{Object: createClusterRoleBinding()})
+	encoded = append(encoded, runtime.RawExtension{Object: createCACertConfigMap()})
+	encoded = append(encoded, runtime.RawExtension{Object: createService()})
+	encoded = append(encoded, runtime.RawExtension{Object: createDeployment()})
+	for _, hook := range webhooks.Webhooks {
+		// no rules...?
+		if len(hook().Rules()) == 0 {
+			continue
+		}
+
+		if *showHookNames {
+			fmt.Println(hook().Name())
+		}
+		if sliceContains(hook().Name(), skip) {
+			continue
+		}
+		if len(onlyInclude) > 0 {
+			if sliceContains(hook().Name(), onlyInclude) {
+				encoded = append(encoded, runtime.RawExtension{Raw: encode(createValidatingWebhookConfiguration(hook()))})
+			}
+			continue
+		}
+		// can't use RawExtension{Object: } here because the VWC doesn't implement DeepCopyObject
+		encoded = append(encoded, runtime.RawExtension{Raw: encode(createValidatingWebhookConfiguration(hook()))})
+	}
+	if *showHookNames {
+		os.Exit(0)
+	}
 	if *templateFile == "" {
 		fmt.Printf("Expected -outfile option\n\n")
 		flag.Usage()
 		os.Exit(1)
 	}
-	ns := createNamespace()
-	clusterrole := createClusterRole()
-	crb := createClusterRoleBinding()
-	deployment := createDeployment()
-	cm := createCACertConfigMap()
-	svc := createService()
-	sa := createServiceAccount()
 
-	encoded := make([]runtime.RawExtension, 0)
-	encoded = append(encoded, runtime.RawExtension{Object: ns})
-	encoded = append(encoded, runtime.RawExtension{Object: sa})
-	encoded = append(encoded, runtime.RawExtension{Object: clusterrole})
-	encoded = append(encoded, runtime.RawExtension{Object: crb})
-	encoded = append(encoded, runtime.RawExtension{Object: cm})
-	encoded = append(encoded, runtime.RawExtension{Object: svc})
-	encoded = append(encoded, runtime.RawExtension{Object: deployment})
-	for _, hook := range webhooks.Webhooks {
-		encoded = append(encoded, runtime.RawExtension{Raw: encode(createValidatingWebhookConfiguration(hook()))})
-	}
 	sss := createSelectorSyncSet(encoded)
 
 	te := templatev1.Template{
