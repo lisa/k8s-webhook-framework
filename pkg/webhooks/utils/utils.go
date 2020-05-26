@@ -62,6 +62,11 @@ func ParseHTTPRequest(r *http.Request) (admissionctl.Request, admissionctl.Respo
 	}
 
 	// Copy for tracking
+	if ar.Request == nil {
+		err = fmt.Errorf("No request in request body")
+		resp = admissionctl.Errored(http.StatusBadRequest, err)
+		return req, resp, err
+	}
 	resp.UID = ar.Request.UID
 	req = admissionctl.Request{
 		AdmissionRequest: *ar.Request,
