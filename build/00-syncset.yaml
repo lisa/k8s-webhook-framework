@@ -1,0 +1,287 @@
+apiVersion: v1
+kind: Template
+metadata:
+  creationTimestamp: null
+  name: selectorsyncset-templat
+objects:
+- apiVersion: v1
+  kind: SelectorSyncSet
+  metadata:
+    creationTimestamp: null
+    labels:
+      managed.openshift.io/gitHash: ${IMAGE_TAG}
+      managed.openshift.io/gitRepoName: ${REPO_NAME}
+      managed.openshift.io/osd: "true"
+    name: managed-cluster-validating-webhooks
+  spec:
+    clusterDeploymentSelector:
+      matchLabels:
+        api.openshift.com/managed: "true"
+    resourceApplyMode: Sync
+    resources:
+    - apiVersion: v1
+      kind: Namespace
+      metadata:
+        creationTimestamp: null
+        labels:
+          openshift.io/cluster-monitoring: "true"
+        name: openshift-validation-webhook
+      spec: {}
+      status: {}
+    - apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        creationTimestamp: null
+        name: validation-webhook
+        namespace: openshift-validation-webhook
+    - apiVersion: v1
+      kind: ClusterRole
+      metadata:
+        creationTimestamp: null
+        name: webhook-validation-cr
+      rules:
+      - apiGroups:
+        - admissionregistration.k8s.io
+        resources:
+        - validatingwebhookconfigurations
+        verbs:
+        - list
+        - patch
+        - get
+      - apiGroups:
+        - ""
+        resources:
+        - configmaps
+        verbs:
+        - list
+        - get
+    - apiVersion: v1
+      kind: ClusterRoleBinding
+      metadata:
+        creationTimestamp: null
+        name: webhook-validation
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: webhook-validation-cr
+      subjects:
+      - kind: ServiceAccount
+        name: validation-webhook
+        namespace: openshift-validation-webhook
+    - apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        annotations:
+          service.beta.openshift.io/inject-cabundle: "true"
+        creationTimestamp: null
+        name: webhook-cert
+        namespace: openshift-validation-webhook
+    - apiVersion: v1
+      kind: Service
+      metadata:
+        annotations:
+          service.beta.openshift.io/serving-cert-secret-name: webhook-cert
+        creationTimestamp: null
+        labels:
+          name: validation-webhook
+        name: validation-webhook
+        namespace: openshift-validation-webhook
+      spec:
+        ports:
+        - name: https
+          port: 5000
+          protocol: TCP
+          targetPort: 443
+        selector:
+          app: validation-webhook
+        type: ClusterIP
+      status:
+        loadBalancer: {}
+    - apiVersion: v1
+      kind: Deployment
+      metadata:
+        creationTimestamp: null
+        labels:
+          app: validation-webhook
+          deployment: validation-webhook
+        name: validation-webhook
+        namespace: openshift-validation-webhook
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: validation-webhook
+        strategy: {}
+        template:
+          metadata:
+            creationTimestamp: null
+            labels:
+              app: validation-webhook
+          spec:
+            containers:
+            - command:
+              - webhooks
+              - -tlskey
+              - /service-certs/tls.key
+              - -tlscert
+              - /service-certs/tls.crt
+              - -cacert
+              - /service-ca/service-ca.crt
+              - -tls
+              image: quay.io/lisa/managed-webhooks:${IMAGE_TAG}
+              imagePullPolicy: Always
+              name: webhooks
+              ports:
+              - containerPort: 5000
+              resources: {}
+              volumeMounts:
+              - mountPath: /service-certs
+                name: service-certs
+                readOnly: true
+              - mountPath: /service-ca
+                name: service-ca
+                readOnly: true
+            initContainers:
+            - command:
+              - injector
+              image: quay.io/lisa/managed-webhooks:${IMAGE_TAG}
+              name: inject-cert
+              resources: {}
+            restartPolicy: Always
+            serviceAccountName: validation-webhook
+            volumes:
+            - name: service-certs
+              secret:
+                secretName: webhook-cert
+            - configMap:
+                name: webhook-cert
+              name: service-ca
+      status: {}
+    - apiVersion: v1
+      kind: ValidatingWebhookConfiguration
+      metadata:
+        annotations:
+          managed.openshift.io/inject-cabundle-from: openshift-validation-webhook/webhook-cert
+        creationTimestamp: null
+        name: sre-regular-user-validation
+      webhooks:
+      - admissionReviewVersions: null
+        clientConfig:
+          service:
+            name: regular-user-validation
+            namespace: openshift-validation-webhook
+            path: /regular-user-validation
+        failurePolicy: Ignore
+        matchPolicy: Equivalent
+        name: regular-user-validation.managed.openshift.io
+        rules:
+        - apiGroups:
+          - autoscaling.openshift.io
+          - cloudcredential.openshift.io
+          - machine.openshift.io
+          - admissionregistration.k8s.io
+          - cloudingress.managed.openshift.io
+          - veleros.managed.openshift.io
+          apiVersions:
+          - '*'
+          operations:
+          - '*'
+          resources:
+          - '*/*'
+          scope: '*'
+        - apiGroups:
+          - config.openshift.io
+          apiVersions:
+          - '*'
+          operations:
+          - '*'
+          resources:
+          - clusterversions
+          - clusterversions/status
+          scope: '*'
+        - apiGroups:
+          - ""
+          apiVersions:
+          - '*'
+          operations:
+          - '*'
+          resources:
+          - nodes
+          - nodes/*
+          scope: '*'
+        - apiGroups:
+          - managed.openshift.io
+          apiVersions:
+          - '*'
+          operations:
+          - '*'
+          resources:
+          - subjectpermissions
+          - subjectpermissions/*
+          scope: '*'
+        sideEffects: null
+    - apiVersion: v1
+      kind: ValidatingWebhookConfiguration
+      metadata:
+        annotations:
+          managed.openshift.io/inject-cabundle-from: openshift-validation-webhook/webhook-cert
+        creationTimestamp: null
+        name: sre-group-validation
+      webhooks:
+      - admissionReviewVersions: null
+        clientConfig:
+          service:
+            name: group-validation
+            namespace: openshift-validation-webhook
+            path: /group-validation
+        failurePolicy: Fail
+        matchPolicy: Exact
+        name: group-validation.managed.openshift.io
+        rules:
+        - apiGroups:
+          - user.openshift.io
+          apiVersions:
+          - '*'
+          operations:
+          - UPDATE
+          - CREATE
+          - DELETE
+          resources:
+          - groups
+          scope: Cluster
+        sideEffects: null
+    - apiVersion: v1
+      kind: ValidatingWebhookConfiguration
+      metadata:
+        annotations:
+          managed.openshift.io/inject-cabundle-from: openshift-validation-webhook/webhook-cert
+        creationTimestamp: null
+        name: sre-namespace-validation
+      webhooks:
+      - admissionReviewVersions: null
+        clientConfig:
+          service:
+            name: namespace-validation
+            namespace: openshift-validation-webhook
+            path: /namespace-validation
+        failurePolicy: Ignore
+        matchPolicy: Exact
+        name: namespace-validation.managed.openshift.io
+        rules:
+        - apiGroups:
+          - ""
+          apiVersions:
+          - '*'
+          operations:
+          - UPDATE
+          resources:
+          - namespaces
+          scope: Cluster
+        sideEffects: null
+  status: {}
+parameters:
+- name: IMAGE_TAG
+  required: true
+- name: REPO_NAME
+  required: true
+  value: managed-cluster-validating-webhooks

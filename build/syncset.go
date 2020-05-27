@@ -11,7 +11,7 @@ import (
 	"github.com/lisa/k8s-webhook-framework/pkg/webhooks"
 	templatev1 "github.com/openshift/api/template/v1"
 	hivev1 "github.com/openshift/hive/pkg/apis/hive/v1"
-	admissionregv1beta1 "k8s.io/api/admissionregistration/v1beta1"
+	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -270,13 +270,13 @@ func createService() *corev1.Service {
 
 // hookToResources turns a Webhook into a ValidatingWebhookConfiguration and Service.
 // The Webhook is expected to implement Rules() which will return a
-func createValidatingWebhookConfiguration(hook webhooks.Webhook) admissionregv1beta1.ValidatingWebhookConfiguration {
+func createValidatingWebhookConfiguration(hook webhooks.Webhook) admissionregv1.ValidatingWebhookConfiguration {
 	failPolicy := hook.FailurePolicy()
 
-	return admissionregv1beta1.ValidatingWebhookConfiguration{
+	return admissionregv1.ValidatingWebhookConfiguration{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ValidatingWebhookConfiguration",
-			APIVersion: "v1beta1",
+			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: fmt.Sprintf("sre-%s", hook.Name()),
@@ -284,13 +284,14 @@ func createValidatingWebhookConfiguration(hook webhooks.Webhook) admissionregv1b
 				"managed.openshift.io/inject-cabundle-from": fmt.Sprintf("%s/webhook-cert", *namespace),
 			},
 		},
-		Webhooks: []admissionregv1beta1.ValidatingWebhook{
+		Webhooks: []admissionregv1.ValidatingWebhook{
 			{
+				SideEffects:   hook.SideEffects(),
 				MatchPolicy:   hook.MatchPolicy(),
 				Name:          fmt.Sprintf("%s.managed.openshift.io", hook.Name()),
 				FailurePolicy: &failPolicy,
-				ClientConfig: admissionregv1beta1.WebhookClientConfig{
-					Service: &admissionregv1beta1.ServiceReference{
+				ClientConfig: admissionregv1.WebhookClientConfig{
+					Service: &admissionregv1.ServiceReference{
 						Namespace: *namespace,
 						Path:      pointer.StringPtr(hook.GetURI()),
 						Name:      hook.Name(),

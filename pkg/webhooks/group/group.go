@@ -10,7 +10,7 @@ import (
 	responsehelper "github.com/lisa/k8s-webhook-framework/pkg/helpers"
 	"github.com/lisa/k8s-webhook-framework/pkg/webhooks/utils"
 	"k8s.io/api/admission/v1beta1"
-	admissionregv1beta1 "k8s.io/api/admissionregistration/v1beta1"
+	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 	admissionctl "sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -44,12 +44,13 @@ var (
 	clusterAdminUsers = []string{"kube:admin", "system:admin"}
 	adminGroups       = []string{"osd-sre-admins,osd-sre-cluster-admins"}
 
-	matchPolicy = admissionregv1beta1.Exact
-	scope       = admissionregv1beta1.ClusterScope
-	rules       = []admissionregv1beta1.RuleWithOperations{
+	sideEffects = admissionregv1.SideEffectClassNone
+	matchPolicy = admissionregv1.Exact
+	scope       = admissionregv1.ClusterScope
+	rules       = []admissionregv1.RuleWithOperations{
 		{
-			Operations: []admissionregv1beta1.OperationType{"UPDATE", "CREATE", "DELETE"},
-			Rule: admissionregv1beta1.Rule{
+			Operations: []admissionregv1.OperationType{"UPDATE", "CREATE", "DELETE"},
+			Rule: admissionregv1.Rule{
 				APIGroups:   []string{"user.openshift.io"},
 				APIVersions: []string{"*"},
 				Resources:   []string{"groups"},
@@ -59,13 +60,14 @@ var (
 	}
 )
 
-func (s *GroupWebhook) MatchPolicy() *admissionregv1beta1.MatchPolicyType { return &matchPolicy }
-func (s *GroupWebhook) Rules() []admissionregv1beta1.RuleWithOperations {
+func (s *GroupWebhook) SideEffects() *admissionregv1.SideEffectClass { return &sideEffects }
+func (s *GroupWebhook) MatchPolicy() *admissionregv1.MatchPolicyType { return &matchPolicy }
+func (s *GroupWebhook) Rules() []admissionregv1.RuleWithOperations {
 	return rules
 }
 
-func (s *GroupWebhook) FailurePolicy() admissionregv1beta1.FailurePolicyType {
-	return admissionregv1beta1.Fail
+func (s *GroupWebhook) FailurePolicy() admissionregv1.FailurePolicyType {
+	return admissionregv1.Fail
 }
 
 func (s *GroupWebhook) Name() string {

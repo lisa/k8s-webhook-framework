@@ -9,7 +9,7 @@ import (
 	responsehelper "github.com/lisa/k8s-webhook-framework/pkg/helpers"
 	"github.com/lisa/k8s-webhook-framework/pkg/webhooks/utils"
 	"k8s.io/api/admission/v1beta1"
-	admissionregv1beta1 "k8s.io/api/admissionregistration/v1beta1"
+	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	admissionctl "sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -24,12 +24,13 @@ const (
 var (
 	adminGroups = []string{"osd-sre-admins", "osd-sre-cluster-admins"}
 
-	matchPolicy = admissionregv1beta1.Equivalent
-	scope       = admissionregv1beta1.AllScopes
-	rules       = []admissionregv1beta1.RuleWithOperations{
+	sideEffects = admissionregv1.SideEffectClassNone
+	matchPolicy = admissionregv1.Equivalent
+	scope       = admissionregv1.AllScopes
+	rules       = []admissionregv1.RuleWithOperations{
 		{
-			Operations: []admissionregv1beta1.OperationType{"*"},
-			Rule: admissionregv1beta1.Rule{
+			Operations: []admissionregv1.OperationType{"*"},
+			Rule: admissionregv1.Rule{
 				APIGroups: []string{
 					"autoscaling.openshift.io",
 					"cloudcredential.openshift.io",
@@ -44,8 +45,8 @@ var (
 			},
 		},
 		{
-			Operations: []admissionregv1beta1.OperationType{"*"},
-			Rule: admissionregv1beta1.Rule{
+			Operations: []admissionregv1.OperationType{"*"},
+			Rule: admissionregv1.Rule{
 				APIGroups:   []string{"config.openshift.io"},
 				APIVersions: []string{"*"},
 				Resources:   []string{"clusterversions", "clusterversions/status"},
@@ -53,8 +54,8 @@ var (
 			},
 		},
 		{
-			Operations: []admissionregv1beta1.OperationType{"*"},
-			Rule: admissionregv1beta1.Rule{
+			Operations: []admissionregv1.OperationType{"*"},
+			Rule: admissionregv1.Rule{
 				APIGroups:   []string{""},
 				APIVersions: []string{"*"},
 				Resources:   []string{"nodes", "nodes/*"},
@@ -62,8 +63,8 @@ var (
 			},
 		},
 		{
-			Operations: []admissionregv1beta1.OperationType{"*"},
-			Rule: admissionregv1beta1.Rule{
+			Operations: []admissionregv1.OperationType{"*"},
+			Rule: admissionregv1.Rule{
 				APIGroups:   []string{"managed.openshift.io"},
 				APIVersions: []string{"*"},
 				Resources:   []string{"subjectpermissions", "subjectpermissions/*"},
@@ -80,7 +81,8 @@ type RegularuserWebhook struct {
 	s  runtime.Scheme
 }
 
-func (s *RegularuserWebhook) MatchPolicy() *admissionregv1beta1.MatchPolicyType { return &matchPolicy }
+func (s *RegularuserWebhook) SideEffects() *admissionregv1.SideEffectClass { return &sideEffects }
+func (s *RegularuserWebhook) MatchPolicy() *admissionregv1.MatchPolicyType { return &matchPolicy }
 
 // Name what am I called?
 func (s *RegularuserWebhook) Name() string {
@@ -88,12 +90,12 @@ func (s *RegularuserWebhook) Name() string {
 }
 
 // FailurePolicy how should the ValidatingWebhookConfiguration fail if this service is missing?
-func (s *RegularuserWebhook) FailurePolicy() admissionregv1beta1.FailurePolicyType {
-	return admissionregv1beta1.Ignore
+func (s *RegularuserWebhook) FailurePolicy() admissionregv1.FailurePolicyType {
+	return admissionregv1.Ignore
 }
 
 // Rules on which this webhook should trigger
-func (s *RegularuserWebhook) Rules() []admissionregv1beta1.RuleWithOperations {
+func (s *RegularuserWebhook) Rules() []admissionregv1.RuleWithOperations {
 	return rules
 }
 

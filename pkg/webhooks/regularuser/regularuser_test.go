@@ -7,7 +7,7 @@ import (
 	"github.com/lisa/k8s-webhook-framework/pkg/testutils"
 
 	"k8s.io/api/admission/v1beta1"
-	admissionregv1beta1 "k8s.io/api/admissionregistration/v1beta1"
+	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -77,9 +77,9 @@ func runRegularuserTests(t *testing.T, tests []regularuserTests) {
 		// https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/#webhook-request-and-response
 		if test.targetSubResource != "" {
 			switch matchPolicy {
-			case admissionregv1beta1.Equivalent:
+			case admissionregv1.Equivalent:
 				rawObjString = fmt.Sprintf(objectStringRequestSubResource, test.targetKind, test.testID, test.targetSubResource)
-			case admissionregv1beta1.Exact:
+			case admissionregv1.Exact:
 				rawObjString = fmt.Sprintf(objectStringSubResource, test.targetKind, test.testID, test.targetSubResource)
 			}
 		} else {

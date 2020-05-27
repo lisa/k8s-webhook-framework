@@ -3,7 +3,7 @@ package webhooks
 import (
 	"net/http"
 
-	admissionregv1beta1 "k8s.io/api/admissionregistration/v1beta1"
+	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	admissionctl "sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
@@ -21,13 +21,16 @@ type Webhook interface {
 	// Name is the name of the webhook
 	Name() string
 	// FailurePolicy is how the hook config should react if k8s can't access it
-	FailurePolicy() admissionregv1beta1.FailurePolicyType
+	FailurePolicy() admissionregv1.FailurePolicyType
 	// MatchPolicy mirrors validatingwebhookconfiguration.webhooks[].matchPolicy.
 	// If it is important to the webhook, be sure to check subResource vs
 	// requestSubResource.
-	MatchPolicy() *admissionregv1beta1.MatchPolicyType
+	MatchPolicy() *admissionregv1.MatchPolicyType
 	// Rules is a slice of rules on which this hook should trigger
-	Rules() []admissionregv1beta1.RuleWithOperations
+	Rules() []admissionregv1.RuleWithOperations
+	// SideEffects are what side effects, if any, this hook has. Refer to
+	// https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/#side-effects
+	SideEffects() *admissionregv1.SideEffectClass
 }
 
 // WebhookFactory return a kind of Webhook

@@ -9,7 +9,7 @@ import (
 	responsehelper "github.com/lisa/k8s-webhook-framework/pkg/helpers"
 	"github.com/lisa/k8s-webhook-framework/pkg/webhooks/utils"
 	"k8s.io/api/admission/v1beta1"
-	admissionregv1beta1 "k8s.io/api/admissionregistration/v1beta1"
+	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	admissionctl "sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -35,12 +35,13 @@ var (
 
 	log = logf.Log.WithName(WebhookName)
 
-	matchPolicy = admissionregv1beta1.Exact
-	scope       = admissionregv1beta1.ClusterScope
-	rules       = []admissionregv1beta1.RuleWithOperations{
+	sideEffects = admissionregv1.SideEffectClassNone
+	matchPolicy = admissionregv1.Exact
+	scope       = admissionregv1.ClusterScope
+	rules       = []admissionregv1.RuleWithOperations{
 		{
-			Operations: []admissionregv1beta1.OperationType{"UPDATE"},
-			Rule: admissionregv1beta1.Rule{
+			Operations: []admissionregv1.OperationType{"UPDATE"},
+			Rule: admissionregv1.Rule{
 				APIGroups:   []string{""},
 				APIVersions: []string{"*"},
 				Resources:   []string{"namespaces"},
@@ -56,13 +57,14 @@ type NamespaceWebhook struct {
 	s  runtime.Scheme
 }
 
-func (s *NamespaceWebhook) MatchPolicy() *admissionregv1beta1.MatchPolicyType { return &matchPolicy }
-func (s *NamespaceWebhook) Rules() []admissionregv1beta1.RuleWithOperations {
+func (s *NamespaceWebhook) SideEffects() *admissionregv1.SideEffectClass { return &sideEffects }
+func (s *NamespaceWebhook) MatchPolicy() *admissionregv1.MatchPolicyType { return &matchPolicy }
+func (s *NamespaceWebhook) Rules() []admissionregv1.RuleWithOperations {
 	return rules
 }
 
-func (s *NamespaceWebhook) FailurePolicy() admissionregv1beta1.FailurePolicyType {
-	return admissionregv1beta1.Ignore
+func (s *NamespaceWebhook) FailurePolicy() admissionregv1.FailurePolicyType {
+	return admissionregv1.Ignore
 }
 
 func (s *NamespaceWebhook) Name() string {
