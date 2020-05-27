@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	admissionregv1beta1 "k8s.io/api/admissionregistration/v1beta1"
+	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
@@ -23,7 +23,7 @@ type CertInjector struct {
 
 func NewCertInjector() *CertInjector {
 	scheme := runtime.NewScheme()
-	err := admissionregv1beta1.AddToScheme(scheme)
+	err := admissionregv1.AddToScheme(scheme)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -55,10 +55,10 @@ func (c *CertInjector) pemEncode(cert string) string {
 
 // getValidatingWebhooks returns all ValidatingWebhooks that have the
 // annotationKey present
-func (c *CertInjector) getValidatingWebhooks(annotationKey string) ([]admissionregv1beta1.ValidatingWebhookConfiguration, error) {
-	ret := make([]admissionregv1beta1.ValidatingWebhookConfiguration, 0)
+func (c *CertInjector) getValidatingWebhooks(annotationKey string) ([]admissionregv1.ValidatingWebhookConfiguration, error) {
+	ret := make([]admissionregv1.ValidatingWebhookConfiguration, 0)
 	hooks, err := c.clientset.
-		AdmissionregistrationV1beta1().
+		AdmissionregistrationV1().
 		ValidatingWebhookConfigurations().
 		List(context.TODO(), v1.ListOptions{})
 	if err != nil {
@@ -98,7 +98,7 @@ func (c *CertInjector) Inject() error {
 			}
 		}
 		c.clientset.
-			AdmissionregistrationV1beta1().
+			AdmissionregistrationV1().
 			ValidatingWebhookConfigurations().
 			Update(context.TODO(), &allHooks[i], v1.UpdateOptions{})
 	}

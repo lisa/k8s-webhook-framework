@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	admissionregv1beta1 "k8s.io/api/admissionregistration/v1beta1"
+	admissionregv1 "k8s.io/api/admissionregistration/v1"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -41,7 +41,7 @@ rqXRfboQnoZsG4q5WTP468SQvvG5
 
 func newTestClient(objs ...runtime.Object) *CertInjector {
 	s := runtime.NewScheme()
-	err := admissionregv1beta1.AddToScheme(s)
+	err := admissionregv1.AddToScheme(s)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -74,19 +74,19 @@ func createConfigMap(name, namespace string, annotations, data map[string]string
 	}
 }
 
-func createValidatingWebhookConfiguration(name, namespace string, annotations map[string]string) *admissionregv1beta1.ValidatingWebhookConfiguration {
-	scope := admissionregv1beta1.ClusterScope
-	return &admissionregv1beta1.ValidatingWebhookConfiguration{
+func createValidatingWebhookConfiguration(name, namespace string, annotations map[string]string) *admissionregv1.ValidatingWebhookConfiguration {
+	scope := admissionregv1.ClusterScope
+	return &admissionregv1.ValidatingWebhookConfiguration{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        name,
 			Annotations: annotations,
 		},
-		Webhooks: []admissionregv1beta1.ValidatingWebhook{
+		Webhooks: []admissionregv1.ValidatingWebhook{
 			{
-				Rules: []admissionregv1beta1.RuleWithOperations{
+				Rules: []admissionregv1.RuleWithOperations{
 					{
-						Operations: []admissionregv1beta1.OperationType{"UPDATE"},
-						Rule: admissionregv1beta1.Rule{
+						Operations: []admissionregv1.OperationType{"UPDATE"},
+						Rule: admissionregv1.Rule{
 							APIGroups:   []string{""},
 							APIVersions: []string{"*"},
 							Resources:   []string{"namespaces"},
@@ -95,8 +95,8 @@ func createValidatingWebhookConfiguration(name, namespace string, annotations ma
 					},
 				},
 				Name: fmt.Sprintf("%s-hook.managed.openshift.io", name),
-				ClientConfig: admissionregv1beta1.WebhookClientConfig{
-					Service: &admissionregv1beta1.ServiceReference{
+				ClientConfig: admissionregv1.WebhookClientConfig{
+					Service: &admissionregv1.ServiceReference{
 						Namespace: namespace,
 						Path:      pointer.StringPtr(fmt.Sprintf("/%s-hook", name)),
 						Name:      name,
@@ -164,14 +164,14 @@ func TestInject(t *testing.T) {
 	}
 	// now try to reload the one with the annotation and see if it has the cert info
 	webhook, err := injector.clientset.
-		AdmissionregistrationV1beta1().
+		AdmissionregistrationV1().
 		ValidatingWebhookConfigurations().
 		Get(context.TODO(), "with", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err.Error())
 	}
 	webhook, err = injector.clientset.
-		AdmissionregistrationV1beta1().
+		AdmissionregistrationV1().
 		ValidatingWebhookConfigurations().
 		Get(context.TODO(), webhook.GetName(), metav1.GetOptions{})
 	if err != nil {
