@@ -400,7 +400,7 @@ func main() {
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "selectorsyncset-templat",
+			Name: "selectorsyncset-template",
 		},
 		Parameters: []templatev1.Parameter{
 			{
