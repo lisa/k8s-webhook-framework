@@ -298,3 +298,8 @@ func TestGetURI(t *testing.T) {
 		t.Fatalf("Hook URI does not begin with a /")
 	}
 }
+func TestSideEffects(t *testing.T) {
+	if NewWebhook().SideEffects() == nil {
+		t.Fatalf("nil side effects")
+	}
+}
