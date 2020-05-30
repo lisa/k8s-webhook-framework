@@ -272,6 +272,7 @@ func createService() *corev1.Service {
 // The Webhook is expected to implement Rules() which will return a
 func createValidatingWebhookConfiguration(hook webhooks.Webhook) admissionregv1.ValidatingWebhookConfiguration {
 	failPolicy := hook.FailurePolicy()
+	timeout := hook.TimeoutSeconds()
 
 	return admissionregv1.ValidatingWebhookConfiguration{
 		TypeMeta: metav1.TypeMeta{
@@ -286,10 +287,11 @@ func createValidatingWebhookConfiguration(hook webhooks.Webhook) admissionregv1.
 		},
 		Webhooks: []admissionregv1.ValidatingWebhook{
 			{
-				SideEffects:   hook.SideEffects(),
-				MatchPolicy:   hook.MatchPolicy(),
-				Name:          fmt.Sprintf("%s.managed.openshift.io", hook.Name()),
-				FailurePolicy: &failPolicy,
+				TimeoutSeconds: &timeout,
+				SideEffects:    hook.SideEffects(),
+				MatchPolicy:    hook.MatchPolicy(),
+				Name:           fmt.Sprintf("%s.managed.openshift.io", hook.Name()),
+				FailurePolicy:  &failPolicy,
 				ClientConfig: admissionregv1.WebhookClientConfig{
 					Service: &admissionregv1.ServiceReference{
 						Namespace: *namespace,

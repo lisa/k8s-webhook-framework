@@ -57,6 +57,7 @@ type NamespaceWebhook struct {
 	s  runtime.Scheme
 }
 
+func (s *NamespaceWebhook) TimeoutSeconds() int32                        { return 2 }
 func (s *NamespaceWebhook) SideEffects() *admissionregv1.SideEffectClass { return &sideEffects }
 func (s *NamespaceWebhook) MatchPolicy() *admissionregv1.MatchPolicyType { return &matchPolicy }
 func (s *NamespaceWebhook) Rules() []admissionregv1.RuleWithOperations {

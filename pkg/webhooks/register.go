@@ -31,6 +31,8 @@ type Webhook interface {
 	// SideEffects are what side effects, if any, this hook has. Refer to
 	// https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/#side-effects
 	SideEffects() *admissionregv1.SideEffectClass
+	//TimeoutSeconds returns an int32 representing how long to wait for this hook to complete
+	TimeoutSeconds() int32
 }
 
 // WebhookFactory return a kind of Webhook

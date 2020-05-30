@@ -60,6 +60,7 @@ var (
 	}
 )
 
+func (s *GroupWebhook) TimeoutSeconds() int32                        { return 2 }
 func (s *GroupWebhook) SideEffects() *admissionregv1.SideEffectClass { return &sideEffects }
 func (s *GroupWebhook) MatchPolicy() *admissionregv1.MatchPolicyType { return &matchPolicy }
 func (s *GroupWebhook) Rules() []admissionregv1.RuleWithOperations {

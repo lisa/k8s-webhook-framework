@@ -81,6 +81,7 @@ type RegularuserWebhook struct {
 	s  runtime.Scheme
 }
 
+func (s *RegularuserWebhook) TimeoutSeconds() int32                        { return 2 }
 func (s *RegularuserWebhook) SideEffects() *admissionregv1.SideEffectClass { return &sideEffects }
 func (s *RegularuserWebhook) MatchPolicy() *admissionregv1.MatchPolicyType { return &matchPolicy }
 

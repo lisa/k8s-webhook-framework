@@ -56,6 +56,7 @@ type IdentityWebhook struct {
 	s  runtime.Scheme
 }
 
+func (s *IdentityWebhook) TimeoutSeconds() int32                        { return 2 }
 func (s *IdentityWebhook) SideEffects() *admissionregv1.SideEffectClass { return &sideEffects }
 func (s *IdentityWebhook) MatchPolicy() *admissionregv1.MatchPolicyType { return &matchPolicy }
 func (s *IdentityWebhook) Rules() []admissionregv1.RuleWithOperations {
