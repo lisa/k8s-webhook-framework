@@ -64,7 +64,7 @@ func createClusterRole() *rbacv1.ClusterRole {
 	return &rbacv1.ClusterRole{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ClusterRole",
-			APIVersion: "v1",
+			APIVersion: "rbac.authorization.k8s.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "webhook-validation-cr",
@@ -140,7 +140,7 @@ func createDeployment() *appsv1.Deployment {
 	return &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Deployment",
-			APIVersion: "v1",
+			APIVersion: "apps/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: map[string]string{
@@ -277,7 +277,7 @@ func createValidatingWebhookConfiguration(hook webhooks.Webhook) admissionregv1.
 	return admissionregv1.ValidatingWebhookConfiguration{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ValidatingWebhookConfiguration",
-			APIVersion: "v1",
+			APIVersion: "admissionregistration.k8s.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: fmt.Sprintf("sre-%s", hook.Name()),
@@ -327,7 +327,7 @@ func createSelectorSyncSet(resources []runtime.RawExtension) *hivev1.SelectorSyn
 	return &hivev1.SelectorSyncSet{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "SelectorSyncSet",
-			APIVersion: "v1",
+			APIVersion: "hive.openshift.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "managed-cluster-validating-webhooks",
